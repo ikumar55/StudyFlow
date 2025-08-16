@@ -6,12 +6,18 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    
     @AppStorage("dailyCardLimit") private var dailyCardLimit: Int = 30
     @AppStorage("enableNotifications") private var enableNotifications: Bool = true
     @AppStorage("quietHoursStart") private var quietHoursStart: Date = Calendar.current.date(from: DateComponents(hour: 23)) ?? Date()
     @AppStorage("quietHoursEnd") private var quietHoursEnd: Date = Calendar.current.date(from: DateComponents(hour: 9)) ?? Date()
+    
+    @State private var showingResetConfirmation = false
+    @State private var showingResetSuccess = false
     
     var body: some View {
         NavigationStack {
@@ -71,7 +77,7 @@ struct SettingsView: View {
                     }
                     
                     Button("Reset All Data", role: .destructive) {
-                        // TODO: Implement reset with confirmation
+                        showingResetConfirmation = true
                     }
                 }
                 
@@ -89,7 +95,75 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .alert("Reset All Data?", isPresented: $showingResetConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Reset", role: .destructive) {
+                    resetAllData()
+                }
+            } message: {
+                Text("This will permanently delete all your classes, lectures, flashcards, and study progress. This action cannot be undone.")
+            }
+            .alert("Data Reset Complete", isPresented: $showingResetSuccess) {
+                Button("Generate Sample Data") {
+                    generateSampleData()
+                }
+                Button("Start Fresh", role: .cancel) { }
+            } message: {
+                Text("All data has been cleared. Would you like to generate sample data to get started?")
+            }
         }
+    }
+    
+    // MARK: - Data Management Functions
+    
+    private func resetAllData() {
+        do {
+            // Delete all study sessions
+            let sessionDescriptor = FetchDescriptor<StudySession>()
+            let sessions = try modelContext.fetch(sessionDescriptor)
+            for session in sessions {
+                modelContext.delete(session)
+            }
+            
+            // Delete all flashcards
+            let flashcardDescriptor = FetchDescriptor<Flashcard>()
+            let flashcards = try modelContext.fetch(flashcardDescriptor)
+            for flashcard in flashcards {
+                modelContext.delete(flashcard)
+            }
+            
+            // Delete all lectures
+            let lectureDescriptor = FetchDescriptor<Lecture>()
+            let lectures = try modelContext.fetch(lectureDescriptor)
+            for lecture in lectures {
+                modelContext.delete(lecture)
+            }
+            
+            // Delete all classes
+            let classDescriptor = FetchDescriptor<StudyClass>()
+            let classes = try modelContext.fetch(classDescriptor)
+            for studyClass in classes {
+                modelContext.delete(studyClass)
+            }
+            
+            // Save changes
+            try modelContext.save()
+            
+            // Show success dialog
+            showingResetSuccess = true
+            
+            // Haptic feedback
+            HapticFeedback.success()
+            
+        } catch {
+            print("Error resetting data: \(error)")
+            // Could show an error alert here
+        }
+    }
+    
+    private func generateSampleData() {
+        SampleDataGenerator.createSampleData(modelContext: modelContext)
+        HapticFeedback.success()
     }
 }
 

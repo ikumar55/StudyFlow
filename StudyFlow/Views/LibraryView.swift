@@ -12,6 +12,22 @@ struct LibraryView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var studyClasses: [StudyClass]
     
+    @State private var showingAddClass = false
+    @State private var newClassName = ""
+    @State private var selectedColorCode = "#4A90E2"
+    
+    // Predefined color options for classes
+    private let classColors = [
+        "#4A90E2", // Blue
+        "#FF6B35", // Orange
+        "#28A745", // Green
+        "#DC3545", // Red
+        "#6F42C1", // Purple
+        "#FD7E14", // Orange-Yellow
+        "#20C997", // Teal
+        "#E83E8C"  // Pink
+    ]
+    
     var body: some View {
         NavigationStack {
             VStack {
@@ -24,8 +40,13 @@ struct LibraryView: View {
             .navigationTitle("Library")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Add Class", action: addSampleClass)
+                    Button("Add Class") {
+                        showingAddClass = true
+                    }
                 }
+            }
+            .sheet(isPresented: $showingAddClass) {
+                addClassSheet
             }
         }
     }
@@ -45,7 +66,9 @@ struct LibraryView: View {
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             
-            Button("Create First Class", action: addSampleClass)
+            Button("Create First Class") {
+                showingAddClass = true
+            }
                 .buttonStyle(.borderedProminent)
         }
         .padding()
@@ -55,34 +78,84 @@ struct LibraryView: View {
         List {
             ForEach(studyClasses) { studyClass in
                 NavigationLink(destination: ClassDetailView(studyClass: studyClass)) {
-                    ClassRowView(studyClass: studyClass)
+                    ClassRowView(studyClass: studyClass, onEdit: { editClass(studyClass) }, onDelete: { deleteClass(studyClass) })
                 }
             }
             .onDelete(perform: deleteClasses)
         }
     }
     
-    private func addSampleClass() {
-        // Add a sample class with some sample data
-        let sampleClass = StudyClass(name: "Neural Networks", colorCode: "#4A90E2")
-        modelContext.insert(sampleClass)
-        
-        // Add a sample lecture
-        let sampleLecture = Lecture(title: "Introduction to Neural Networks", studyClass: sampleClass)
-        modelContext.insert(sampleLecture)
-        
-        // Add sample flashcards
-        let questions = [
-            ("What is a neural network?", "A computational model inspired by biological neural networks, consisting of interconnected nodes (neurons) that process information."),
-            ("What is backpropagation?", "An algorithm for training neural networks by calculating gradients and propagating errors backward through the network."),
-            ("What is an activation function?", "A mathematical function that determines the output of a neural network node, introducing non-linearity to the model.")
-        ]
-        
-        for (question, answer) in questions {
-            let flashcard = Flashcard(question: question, answer: answer, lecture: sampleLecture)
-            modelContext.insert(flashcard)
+    // MARK: - Add Class Sheet
+    private var addClassSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Class Details") {
+                    TextField("Class Name", text: $newClassName)
+                        .textInputAutocapitalization(.words)
+                }
+                
+                Section("Color") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 16) {
+                        ForEach(classColors, id: \.self) { colorCode in
+                            Button(action: { selectedColorCode = colorCode }) {
+                                Circle()
+                                    .fill(Color(hex: colorCode) ?? Color.blue)
+                                    .frame(width: 40, height: 40)
+                                    .overlay(
+                                        Circle()
+                                            .stroke(selectedColorCode == colorCode ? Color.primary : Color.clear, lineWidth: 3)
+                                    )
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            .navigationTitle("New Class")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        resetAddClassForm()
+                        showingAddClass = false
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add") {
+                        addNewClass()
+                    }
+                    .disabled(newClassName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
         }
+    }
+    
+    private func addNewClass() {
+        let trimmedName = newClassName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
         
+        let newClass = StudyClass(name: trimmedName, colorCode: selectedColorCode)
+        modelContext.insert(newClass)
+        
+        try? modelContext.save()
+        resetAddClassForm()
+        showingAddClass = false
+    }
+    
+    private func resetAddClassForm() {
+        newClassName = ""
+        selectedColorCode = "#4A90E2"
+    }
+    
+    private func editClass(_ studyClass: StudyClass) {
+        // TODO: Implement edit functionality
+        print("Edit class: \(studyClass.name)")
+    }
+    
+    private func deleteClass(_ studyClass: StudyClass) {
+        modelContext.delete(studyClass)
         try? modelContext.save()
     }
     
@@ -97,12 +170,19 @@ struct LibraryView: View {
 
 struct ClassRowView: View {
     let studyClass: StudyClass
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var showingOptions = false
+    @State private var showingDeleteAlert = false
+    @State private var showingEditDialog = false
+    @State private var editedName = ""
     
     var body: some View {
         HStack {
-            // Color indicator
+            // Class color indicator
             Circle()
-                .fill(Color(hex: studyClass.colorCode) ?? .blue)
+                .fill(Color(hex: studyClass.colorCode) ?? Color.blue)
                 .frame(width: 12, height: 12)
             
             VStack(alignment: .leading, spacing: 4) {
@@ -116,53 +196,53 @@ struct ClassRowView: View {
             
             Spacer()
             
-            VStack(alignment: .trailing, spacing: 2) {
-                HStack(spacing: 8) {
-                    Label("\(studyClass.learningCards)", systemImage: "circle.fill")
-                        .foregroundColor(.orange)
-                        .font(.caption)
-                    
-                    Label("\(studyClass.reviewingCards)", systemImage: "circle.fill")
-                        .foregroundColor(.yellow)
-                        .font(.caption)
-                    
-                    Label("\(studyClass.masteredCards)", systemImage: "circle.fill")
-                        .foregroundColor(.green)
-                        .font(.caption)
-                }
+            // Three dots menu
+            Button(action: { showingOptions = true }) {
+                Image(systemName: "ellipsis")
+                    .foregroundColor(.secondary)
+                    .font(.title3)
             }
+            .buttonStyle(PlainButtonStyle())
         }
         .padding(.vertical, 4)
-    }
-}
-
-// Helper extension for hex color
-extension Color {
-    init?(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            return nil
+        .confirmationDialog("Class Options", isPresented: $showingOptions, titleVisibility: .visible) {
+            Button("Rename") {
+                editedName = studyClass.name
+                showingEditDialog = true
+            }
+            Button("Delete", role: .destructive) {
+                showingDeleteAlert = true
+            }
+            Button("Cancel", role: .cancel) { }
         }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
+        .alert("Delete Class", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Are you sure you want to delete '\(studyClass.name)'? This will also delete all lectures and flashcards in this class.")
+        }
+        .alert("Rename Class", isPresented: $showingEditDialog) {
+            TextField("Class Name", text: $editedName)
+            Button("Cancel", role: .cancel) {
+                editedName = ""
+            }
+            Button("Save") {
+                if !editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    studyClass.name = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    try? studyClass.modelContext?.save()
+                }
+                editedName = ""
+            }
+            .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text("Enter a new name for this class")
+        }
     }
 }
+
+
 
 #Preview {
     LibraryView()

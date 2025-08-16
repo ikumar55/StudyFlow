@@ -64,9 +64,12 @@ struct TodayView: View {
     }
     
     // MARK: - Computed Properties
+    var todaysCards: [Flashcard] {
+        SpacedRepetitionEngine.getTodaysCards(from: allFlashcards, maxLimit: 30)
+    }
+    
     var overdueCards: [Flashcard] {
-        allFlashcards.filter { $0.isActive && $0.isOverdue && $0.overdueStatus.warningLevel <= 3 }
-            .sorted { $0.nextScheduledDate < $1.nextScheduledDate }
+        todaysCards.filter { $0.isOverdue && $0.overdueStatus.warningLevel <= 3 }
     }
     
     var pendingNotificationCards: [Flashcard] {
@@ -75,33 +78,15 @@ struct TodayView: View {
     }
     
     var learningCards: [Flashcard] {
-        allFlashcards.filter {
-            $0.isActive &&
-            $0.studyState == .learning &&
-            !$0.isOverdue &&
-            shouldAppearToday($0)
-        }
-        .sorted { $0.createdDate > $1.createdDate }
-        .prefix(20) // Limit for now
-        .map { $0 }
+        todaysCards.filter { $0.studyState == .learning && !$0.isOverdue }
     }
     
     var reviewingCards: [Flashcard] {
-        allFlashcards.filter {
-            $0.isActive &&
-            $0.studyState == .reviewing &&
-            shouldAppearToday($0)
-        }
-        .sorted { $0.nextScheduledDate < $1.nextScheduledDate }
+        todaysCards.filter { $0.studyState == .reviewing && !$0.isOverdue }
     }
     
     var masteredCards: [Flashcard] {
-        allFlashcards.filter {
-            $0.isActive &&
-            $0.studyState == .mastered &&
-            shouldAppearToday($0)
-        }
-        .sorted { $0.nextScheduledDate < $1.nextScheduledDate }
+        todaysCards.filter { $0.studyState == .mastered && !$0.isOverdue }
     }
     
     var totalCardsToday: Int {
@@ -149,8 +134,8 @@ struct TodayView: View {
             title: "🚨 OVERDUE",
             subtitle: "\(overdueCards.count) cards",
             cards: overdueCards,
-            backgroundColor: Color.red.opacity(0.1),
-            accentColor: .red
+            backgroundColor: Color.overdueWarning.opacity(0.15),
+            accentColor: .overdueWarning
         )
     }
     
@@ -159,8 +144,8 @@ struct TodayView: View {
             title: "🔔 PENDING NOTIFICATIONS",
             subtitle: "\(pendingNotificationCards.count) cards",
             cards: pendingNotificationCards,
-            backgroundColor: Color.blue.opacity(0.1),
-            accentColor: .blue
+            backgroundColor: Color.notificationBlue.opacity(0.15),
+            accentColor: .notificationBlue
         )
     }
     
@@ -169,8 +154,8 @@ struct TodayView: View {
             title: "🟠 LEARNING TODAY",
             subtitle: "\(learningCards.count) cards",
             cards: learningCards,
-            backgroundColor: Color.orange.opacity(0.1),
-            accentColor: .orange
+            backgroundColor: Color.learningTint,
+            accentColor: .learningAccent
         )
     }
     
@@ -179,8 +164,8 @@ struct TodayView: View {
             title: "🟡 REVIEWING TODAY",
             subtitle: "\(reviewingCards.count) cards",
             cards: reviewingCards,
-            backgroundColor: Color.yellow.opacity(0.1),
-            accentColor: .yellow
+            backgroundColor: Color.reviewingTint,
+            accentColor: .reviewingAccent
         )
     }
     
@@ -189,8 +174,8 @@ struct TodayView: View {
             title: "🟢 MASTERED TODAY",
             subtitle: "\(masteredCards.count) cards",
             cards: masteredCards,
-            backgroundColor: Color.green.opacity(0.1),
-            accentColor: .green
+            backgroundColor: Color.masteredTint,
+            accentColor: .masteredAccent
         )
     }
     
@@ -198,32 +183,28 @@ struct TodayView: View {
         VStack(spacing: 12) {
             if totalCardsToday > 0 {
                 // Primary study button
-                Button(action: startAllCardsSession) {
+                Button(action: {
+                    HapticFeedback.medium()
+                    startAllCardsSession()
+                }) {
                     HStack {
                         Image(systemName: "play.circle.fill")
                         Text("Study All • \(totalCardsToday) cards • ~\(estimatedTimeMinutes) min")
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(StudyFlowPrimaryButtonStyle())
                 
                 // Quick session button
-                Button(action: startQuickSession) {
+                Button(action: {
+                    HapticFeedback.light()
+                    startQuickSession()
+                }) {
                     HStack {
                         Image(systemName: "bolt.circle.fill")
                         Text("Quick Session • 5 cards")
                     }
-                    .font(.subheadline)
-                    .foregroundColor(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(StudyFlowSecondaryButtonStyle())
             } else {
                 // No cards message with add cards button
                 Button(action: navigateToLibrary) {
@@ -231,34 +212,13 @@ struct TodayView: View {
                         Image(systemName: "plus.circle.fill")
                         Text("Add Cards to Study")
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(StudyFlowPrimaryButtonStyle())
             }
         }
     }
     
     // MARK: - Helper Functions
-    func shouldAppearToday(_ card: Flashcard) -> Bool {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let cardDate = calendar.startOfDay(for: card.nextScheduledDate)
-        
-        switch card.studyState {
-        case .learning:
-            return true // Learning cards appear daily
-        case .reviewing:
-            return cardDate <= today // Reviewing cards appear when due
-        case .mastered:
-            return cardDate <= today // Mastered cards appear when due
-        case .inactive:
-            return false // Inactive cards never appear
-        }
-    }
     
     // MARK: - Actions
     func startAllCardsSession() {
@@ -277,8 +237,10 @@ struct TodayView: View {
     }
     
     func navigateToLibrary() {
-        // TODO: Navigate to library tab
-        print("Navigate to library")
+        // Note: In a TabView, we can't programmatically switch tabs from a child view
+        // This button encourages users to manually switch to the Library tab
+        // In a production app, we might use a coordinator pattern or notification
+        print("User should switch to Library tab to add cards")
     }
 }
 

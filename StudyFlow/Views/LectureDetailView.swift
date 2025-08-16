@@ -68,26 +68,26 @@ struct LectureDetailView: View {
                     .foregroundColor(.secondary)
             }
             
-            // Statistics
-            HStack(spacing: 16) {
-                StatPill(title: "Total", value: "\(lecture.flashcardCount)", color: .blue)
-                StatPill(title: "Active", value: "\(lecture.activeFlashcardCount)", color: .green)
-                
-                let learningCount = lecture.flashcards.filter { $0.studyState == .learning && $0.isActive }.count
-                let reviewingCount = lecture.flashcards.filter { $0.studyState == .reviewing && $0.isActive }.count
-                let masteredCount = lecture.flashcards.filter { $0.studyState == .mastered && $0.isActive }.count
-                
-                if learningCount > 0 {
-                    StatPill(title: "Learning", value: "\(learningCount)", color: .orange)
+            // Study progress statistics - clean design
+            if lecture.flashcardCount > 0 {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Study Progress")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    
+                    HStack(spacing: 20) {
+                        let learningCount = lecture.flashcards.filter { $0.studyState == .learning && $0.isActive }.count
+                        let reviewingCount = lecture.flashcards.filter { $0.studyState == .reviewing && $0.isActive }.count
+                        let masteredCount = lecture.flashcards.filter { $0.studyState == .mastered && $0.isActive }.count
+                        
+                        StudyStatItem(emoji: "🟠", label: "Learning", count: learningCount)
+                        StudyStatItem(emoji: "🟡", label: "Reviewing", count: reviewingCount)
+                        StudyStatItem(emoji: "🟢", label: "Mastered", count: masteredCount)
+                        Spacer()
+                    }
                 }
-                if reviewingCount > 0 {
-                    StatPill(title: "Reviewing", value: "\(reviewingCount)", color: .yellow)
-                }
-                if masteredCount > 0 {
-                    StatPill(title: "Mastered", value: "\(masteredCount)", color: .green)
-                }
-                
-                Spacer()
             }
             
             // Bulk operations button

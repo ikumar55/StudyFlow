@@ -183,8 +183,7 @@ struct StudySessionView: View {
                             .foregroundColor(.blue)
                         
                         Text(card.question)
-                            .font(.title2)
-                            .fontWeight(.semibold)
+                            .font(.cardQuestion)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                     }
@@ -196,7 +195,7 @@ struct StudySessionView: View {
                             .foregroundColor(.green)
                         
                         Text(card.answer)
-                            .font(.body)
+                            .font(.cardAnswer)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
                     }
@@ -208,7 +207,8 @@ struct StudySessionView: View {
         }
         .rotation3DEffect(
             .degrees(isAnswerVisible ? 180 : 0),
-            axis: (x: 0, y: 1, z: 0)
+            axis: (x: 0, y: 1, z: 0),
+            perspective: 0.5
         )
         .onTapGesture {
             if !isAnswerVisible {
@@ -228,31 +228,34 @@ struct StudySessionView: View {
         VStack(spacing: 16) {
             HStack(spacing: 20) {
                 // "Need Practice" button
-                Button(action: { answerCard(correct: false) }) {
+                Button(action: { 
+                    HapticFeedback.light()
+                    answerCard(correct: false) 
+                }) {
                     HStack {
                         Image(systemName: "xmark.circle.fill")
                         Text("Need Practice")
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.red)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
+                .buttonStyle(StudyFlowDestructiveButtonStyle())
                 
                 // "Got It" button
-                Button(action: { answerCard(correct: true) }) {
+                Button(action: { 
+                    HapticFeedback.success()
+                    answerCard(correct: true) 
+                }) {
                     HStack {
                         Image(systemName: "checkmark.circle.fill")
                         Text("Got It!")
                     }
-                    .font(.headline)
+                    .font(.studyFlowSubheadline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding()
+                    .padding(.vertical, Spacing.md)
+                    .padding(.horizontal, Spacing.lg)
                     .background(Color.green)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.button))
+                    .studyFlowButtonShadow()
                 }
             }
             
@@ -312,8 +315,8 @@ struct StudySessionView: View {
             card.correctCount += 1
             correctAnswers += 1
             
-            // Check for promotion eligibility
-            if card.correctCount >= 5 && card.canBePromoted {
+            // Check for promotion eligibility using the engine
+            if SpacedRepetitionEngine.shouldOfferPromotion(for: card) {
                 cardToPromote = card
                 showingPromotionAlert = true
             }
@@ -347,28 +350,12 @@ struct StudySessionView: View {
     }
     
     private func updateCardSchedule(_ card: Flashcard, wasCorrect: Bool) {
-        let calendar = Calendar.current
-        
-        if !wasCorrect {
-            // Wrong answer: review again today or tomorrow
-            card.nextScheduledDate = calendar.date(byAdding: .hour, value: 4, to: Date()) ?? Date()
-            return
-        }
-        
-        // Correct answer: calculate next review based on study state
-        let daysToAdd: Int
-        switch card.studyState {
-        case .learning:
-            daysToAdd = min(card.correctCount, 3) // 1, 2, 3 days max for learning
-        case .reviewing:
-            daysToAdd = min(card.correctCount * 2, 14) // 2, 4, 6, 8... up to 14 days
-        case .mastered:
-            daysToAdd = min(card.correctCount * 7, 90) // Weekly intervals, up to 90 days
-        case .inactive:
-            daysToAdd = 1 // Shouldn't happen, but default to tomorrow
-        }
-        
-        card.nextScheduledDate = calendar.date(byAdding: .day, value: daysToAdd, to: Date()) ?? Date()
+        // Use the sophisticated spaced repetition engine
+        card.nextScheduledDate = SpacedRepetitionEngine.calculateNextReviewDate(
+            for: card,
+            wasCorrect: wasCorrect,
+            responseTime: nil // Could track response time in future
+        )
     }
     
     private func promoteCard(_ card: Flashcard, to newState: StudyCardState) {

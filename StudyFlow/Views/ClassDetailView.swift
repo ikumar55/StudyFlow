@@ -53,38 +53,42 @@ struct ClassDetailView: View {
     
     // MARK: - Class Overview Card
     private var classOverviewCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Circle()
-                    .fill(Color(hex: studyClass.colorCode) ?? .blue)
-                    .frame(width: 12, height: 12)
-                
+        VStack(alignment: .leading, spacing: 16) {
+            // Class header - clean and simple
+            VStack(alignment: .leading, spacing: 8) {
                 Text(studyClass.name)
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                    .font(.title2)
+                    .fontWeight(.bold)
                 
-                Spacer()
+                Text("\(studyClass.activeFlashcards) active cards")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
             }
             
-            // Statistics
-            VStack(spacing: 8) {
-                HStack {
-                    StatPill(title: "Total Cards", value: "\(studyClass.totalFlashcards)", color: .blue)
-                    StatPill(title: "Active", value: "\(studyClass.activeFlashcards)", color: .green)
-                    Spacer()
-                }
-                
-                HStack {
-                    StatPill(title: "Learning", value: "\(studyClass.learningCards)", color: .orange)
-                    StatPill(title: "Reviewing", value: "\(studyClass.reviewingCards)", color: .yellow)
-                    StatPill(title: "Mastered", value: "\(studyClass.masteredCards)", color: .green)
-                    Spacer()
+            // Study progress in a clean horizontal layout
+            if studyClass.activeFlashcards > 0 {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Study Progress")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+                        .textCase(.uppercase)
+                    
+                    HStack(spacing: 20) {
+                        StudyStatItem(emoji: "🟠", label: "Learning", count: studyClass.learningCards)
+                        StudyStatItem(emoji: "🟡", label: "Reviewing", count: studyClass.reviewingCards)
+                        StudyStatItem(emoji: "🟢", label: "Mastered", count: studyClass.masteredCards)
+                        Spacer()
+                    }
                 }
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(20)
+        .background(Color(.systemBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
     }
     
     // MARK: - Empty State
@@ -201,21 +205,27 @@ struct LectureRowView: View {
                     .lineLimit(2)
             }
             
-            // Study state breakdown for this lecture
+            // Simple study state breakdown for this lecture
             if lecture.flashcardCount > 0 {
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     let learningCount = lecture.flashcards.filter { $0.studyState == .learning && $0.isActive }.count
                     let reviewingCount = lecture.flashcards.filter { $0.studyState == .reviewing && $0.isActive }.count
                     let masteredCount = lecture.flashcards.filter { $0.studyState == .mastered && $0.isActive }.count
                     
                     if learningCount > 0 {
-                        StudyStateBadge(state: .learning, count: learningCount)
+                        Text("🟠 \(learningCount)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     if reviewingCount > 0 {
-                        StudyStateBadge(state: .reviewing, count: reviewingCount)
+                        Text("🟡 \(reviewingCount)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     if masteredCount > 0 {
-                        StudyStateBadge(state: .mastered, count: masteredCount)
+                        Text("🟢 \(masteredCount)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     
                     Spacer()
@@ -227,26 +237,25 @@ struct LectureRowView: View {
 }
 
 // MARK: - Supporting Views
-struct StatPill: View {
-    let title: String
-    let value: String
-    let color: Color
+struct StudyStatItem: View {
+    let emoji: String
+    let label: String
+    let count: Int
     
     var body: some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(color)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text(emoji)
+                    .font(.caption)
+                Text("\(count)")
+                    .font(.headline)
+                    .fontWeight(.semibold)
+            }
             
-            Text(title)
+            Text(label)
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 

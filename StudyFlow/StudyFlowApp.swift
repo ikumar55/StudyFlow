@@ -29,6 +29,10 @@ struct StudyFlowApp: App {
     var body: some Scene {
         WindowGroup {
             MainTabView()
+                .onAppear {
+                    // Generate sample data on first launch
+                    SampleDataGenerator.createSampleDataIfNeeded(modelContext: sharedModelContainer.mainContext)
+                }
         }
         .modelContainer(sharedModelContainer)
     }
