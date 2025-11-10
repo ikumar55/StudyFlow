@@ -239,3 +239,23 @@ class StudySession {
         completedDate != nil
     }
 }
+
+// MARK: - Daily Card Completion Model
+@Model
+class DailyCardCompletion {
+    var flashcardID: String // Store flashcard ID to reference
+    var completedDate: Date
+    var wasCorrect: Bool
+    var studyDate: Date // The date this completion belongs to (for daily grouping)
+    
+    init(flashcardID: String, wasCorrect: Bool, studyDate: Date = Date()) {
+        self.flashcardID = flashcardID
+        self.wasCorrect = wasCorrect
+        self.completedDate = Date()
+        self.studyDate = Calendar.current.startOfDay(for: studyDate)
+    }
+    
+    var accuracy: Double {
+        wasCorrect ? 1.0 : 0.0
+    }
+}

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct StudyFlowApp: App {
@@ -15,7 +16,8 @@ struct StudyFlowApp: App {
             StudyClass.self,
             Lecture.self,
             Flashcard.self,
-            StudySession.self
+            StudySession.self,
+            DailyCardCompletion.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -32,8 +34,31 @@ struct StudyFlowApp: App {
                 .onAppear {
                     // Generate sample data on first launch
                     SampleDataGenerator.createSampleDataIfNeeded(modelContext: sharedModelContainer.mainContext)
+                    
+                    // Request notification permissions
+                    requestNotificationPermissions()
                 }
         }
         .modelContainer(sharedModelContainer)
+    }
+    
+    // MARK: - Notification Setup
+    private func requestNotificationPermissions() {
+        let center = UNUserNotificationCenter.current()
+        
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    print("Notification permission granted")
+                    // Initialize notification scheduling
+                    NotificationManager.shared.initializeNotificationScheduling(modelContext: sharedModelContainer.mainContext)
+                } else {
+                    print("Notification permission denied: \(error?.localizedDescription ?? "Unknown error")")
+                }
+            }
+        }
+        
+        // Set the app as the notification center delegate
+        center.delegate = NotificationDelegate.shared
     }
 }

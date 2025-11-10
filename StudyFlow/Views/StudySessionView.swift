@@ -22,6 +22,9 @@ struct StudySessionView: View {
     @State private var showingPromotionAlert = false
     @State private var cardToPromote: Flashcard?
     @State private var showingSessionComplete = false
+    @State private var showingEditCard = false
+    @State private var editedQuestion = ""
+    @State private var editedAnswer = ""
     
     private var currentCard: Flashcard? {
         guard currentCardIndex < initialCards.count else { return nil }
@@ -93,6 +96,13 @@ struct StudySessionView: View {
                     onDismiss: { dismiss() }
                 )
             }
+            .sheet(isPresented: $showingEditCard, onDismiss: {
+                // Reset edit fields when sheet is dismissed
+                editedQuestion = ""
+                editedAnswer = ""
+            }) {
+                editCardSheet
+            }
         }
     }
     
@@ -137,14 +147,44 @@ struct StudySessionView: View {
                     
                     Spacer()
                     
-                    if let className = card.lecture?.studyClass?.name {
-                        Text(className)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color(.systemFill))
-                            .clipShape(Capsule())
+                    HStack {
+                        HStack(spacing: 8) {
+                            if let className = card.lecture?.studyClass?.name {
+                                Text(className)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color(.systemFill))
+                                    .clipShape(Capsule())
+                            }
+                            
+                            if let lectureName = card.lecture?.title {
+                                Text("•")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                Text(lectureName)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.1))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        // Edit button
+                        Button(action: {
+                            HapticFeedback.light()
+                            showingEditCard = true
+                        }) {
+                            Image(systemName: "pencil.circle")
+                                .font(.title2)
+                                .foregroundColor(.blue)
+                        }
                     }
                 }
                 
@@ -210,16 +250,16 @@ struct StudySessionView: View {
             axis: (x: 0, y: 1, z: 0),
             perspective: 0.5
         )
+        // Fix text mirroring by applying counter-rotation to content when flipped
+        .scaleEffect(x: isAnswerVisible ? -1 : 1, y: 1)
         .onTapGesture {
-            if !isAnswerVisible {
-                withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                    isAnswerVisible = true
-                }
-                
-                // Haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                impactFeedback.impactOccurred()
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                isAnswerVisible.toggle()
             }
+            
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
         }
     }
     
@@ -237,7 +277,7 @@ struct StudySessionView: View {
                         Text("Need Practice")
                     }
                 }
-                .buttonStyle(StudyFlowDestructiveButtonStyle())
+                .buttonStyle(StudyAnswerWrongButtonStyle())
                 
                 // "Got It" button
                 Button(action: { 
@@ -248,23 +288,9 @@ struct StudySessionView: View {
                         Image(systemName: "checkmark.circle.fill")
                         Text("Got It!")
                     }
-                    .font(.studyFlowSubheadline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, Spacing.md)
-                    .padding(.horizontal, Spacing.lg)
-                    .background(Color.green)
-                    .clipShape(RoundedRectangle(cornerRadius: CornerRadius.button))
-                    .studyFlowButtonShadow()
                 }
+                .buttonStyle(StudyAnswerCorrectButtonStyle())
             }
-            
-            // Optional: Mark as difficult button
-            Button("Mark as Difficult") {
-                // TODO: Implement difficulty marking
-            }
-            .font(.caption)
-            .foregroundColor(.secondary)
         }
         .padding()
     }
@@ -274,13 +300,10 @@ struct StudySessionView: View {
         VStack(spacing: 24) {
             Spacer()
             
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.green)
+            // Dynamic feedback based on performance
+            sessionFeedbackIcon
             
-            Text("Session Complete!")
-                .font(.title)
-                .fontWeight(.bold)
+            sessionFeedbackTitle
             
             VStack(spacing: 8) {
                 Text("\(correctAnswers) out of \(initialCards.count) correct")
@@ -291,7 +314,9 @@ struct StudySessionView: View {
                     .foregroundColor(.secondary)
             }
             
-            Button("View Results") {
+            sessionFeedbackMessage
+            
+            Button("Continue Learning") {
                 showingSessionComplete = true
             }
             .buttonStyle(.borderedProminent)
@@ -303,7 +328,147 @@ struct StudySessionView: View {
         }
     }
     
+    // MARK: - Session Feedback Components
+    private var sessionFeedbackIcon: some View {
+        Group {
+            if accuracy >= 0.8 {
+                Image(systemName: "star.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.yellow)
+            } else if accuracy >= 0.6 {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.green)
+            } else if accuracy >= 0.3 {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.orange)
+            } else {
+                Image(systemName: "arrow.clockwise.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.blue)
+            }
+        }
+    }
+    
+    private var sessionFeedbackTitle: some View {
+        Group {
+            if accuracy >= 0.8 {
+                Text("Outstanding!")
+                    .font(.title)
+                    .fontWeight(.bold)
+            } else if accuracy >= 0.6 {
+                Text("Great Work!")
+                    .font(.title)
+                    .fontWeight(.bold)
+            } else if accuracy >= 0.3 {
+                Text("Keep Going!")
+                    .font(.title)
+                    .fontWeight(.bold)
+            } else {
+                Text("Practice Makes Perfect!")
+                    .font(.title)
+                    .fontWeight(.bold)
+            }
+        }
+    }
+    
+    private var sessionFeedbackMessage: some View {
+        Group {
+            if accuracy >= 0.8 {
+                Text("You're mastering this material!")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            } else if accuracy >= 0.6 {
+                Text("Solid progress! Keep studying to master these concepts.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            } else if accuracy >= 0.3 {
+                Text("You're learning! Review these cards again to improve.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                Text("Every expert was once a beginner. Keep going!")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+    
+    // MARK: - Edit Card Sheet
+    private var editCardSheet: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Edit Flashcard")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Question")
+                            .font(.headline)
+                        TextEditor(text: $editedQuestion)
+                            .frame(minHeight: 80)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Answer")
+                            .font(.headline)
+                        TextEditor(text: $editedAnswer)
+                            .frame(minHeight: 80)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                    }
+                }
+            }
+            .navigationTitle("Edit Flashcard")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        showingEditCard = false
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveEditedCard()
+                    }
+                    .disabled(editedQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                             editedAnswer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .onAppear {
+            // Pre-populate fields when sheet appears
+            if let card = currentCard {
+                editedQuestion = card.question
+                editedAnswer = card.answer
+            }
+        }
+    }
+    
     // MARK: - Actions
+    private func saveEditedCard() {
+        guard let card = currentCard else { return }
+        
+        // Update the card with edited content
+        card.question = editedQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+        card.answer = editedAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Save the context
+        do {
+            try modelContext.save()
+            HapticFeedback.success()
+            showingEditCard = false
+        } catch {
+            print("Error saving edited card: \(error)")
+            HapticFeedback.error()
+        }
+    }
+    
     private func answerCard(correct: Bool) {
         guard let card = currentCard else { return }
         
@@ -356,6 +521,13 @@ struct StudySessionView: View {
             wasCorrect: wasCorrect,
             responseTime: nil // Could track response time in future
         )
+        
+        // Track daily completion for Today tab
+        let completion = DailyCardCompletion(
+            flashcardID: card.persistentModelID.hashValue.description,
+            wasCorrect: wasCorrect
+        )
+        modelContext.insert(completion)
     }
     
     private func promoteCard(_ card: Flashcard, to newState: StudyCardState) {

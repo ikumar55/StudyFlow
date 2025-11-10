@@ -8,21 +8,40 @@
 import SwiftUI
 
 extension Color {
-    // MARK: - Study State Colors (Subtle Tints)
-    static let learningTint = Color(hex: "#FF8C42")?.opacity(0.3) ?? Color.orange.opacity(0.3)
-    static let reviewingTint = Color(hex: "#FFC947")?.opacity(0.3) ?? Color.yellow.opacity(0.3)
-    static let masteredTint = Color(hex: "#4CAF50")?.opacity(0.3) ?? Color.green.opacity(0.3)
-    static let inactiveTint = Color(hex: "#E0E0E0") ?? Color.gray.opacity(0.3)
+    // MARK: - iOS Native Colors
+    static let iosLightGray = Color(hex: "#F6F6F6") ?? Color(.systemGray6)
+    static let iosLightGray2 = Color(hex: "#F2F2F7") ?? Color(.systemGray6)
     
-    // MARK: - Priority Indicators
-    static let overdueWarning = Color(hex: "#FF5722")?.opacity(0.8) ?? Color.red.opacity(0.8)
-    static let notificationBlue = Color(hex: "#2196F3")?.opacity(0.6) ?? Color.blue.opacity(0.6)
+    // MARK: - Subtle Section Background Colors
+    static let overdueBackground = Color(hex: "#FEF7F7") ?? Color.red.opacity(0.05)
+    static let learningBackground = Color(hex: "#FFF9E6") ?? Color.orange.opacity(0.05)
+    static let reviewingBackground = Color(hex: "#F0F8FF") ?? Color.blue.opacity(0.05)
+    static let masteredBackground = Color.white // Keep mastered as pure white
     
-    // MARK: - Study State Accent Colors (Full Opacity)
-    static let learningAccent = Color(hex: "#FF8C42") ?? Color.orange
-    static let reviewingAccent = Color(hex: "#FFC947") ?? Color.yellow
-    static let masteredAccent = Color(hex: "#4CAF50") ?? Color.green
-    static let inactiveAccent = Color(hex: "#9E9E9E") ?? Color.gray
+    // MARK: - Section Accent Colors (for borders)
+    static let overdueAccent = Color(hex: "#FF3B30") ?? Color.red
+    static let learningBorderAccent = Color(hex: "#FF9500") ?? Color.orange
+    static let reviewingBorderAccent = Color(hex: "#007AFF") ?? Color.blue
+    static let masteredBorderAccent = Color.green
+    
+    // MARK: - Typography Colors
+    static let subtitleGray = Color(hex: "#8E8E93") ?? Color.secondary
+    
+    // MARK: - Study State Colors (iOS Native with White Backgrounds)
+    static let learningTint = Color.white
+    static let reviewingTint = Color.white
+    static let masteredTint = Color.white
+    static let inactiveTint = Color.white
+    
+    // MARK: - Priority Indicators (Updated for iOS Native)
+    static let overdueWarning = Color.red
+    static let notificationBlue = Color.blue
+    
+    // MARK: - Study State Accent Colors (iOS Native)
+    static let learningAccent = Color.orange
+    static let reviewingAccent = Color.blue  // Changed from yellow for better iOS feel
+    static let masteredAccent = Color.green
+    static let inactiveAccent = Color.gray
     
     // MARK: - Hex Color Initializer
     init?(hex: String) {

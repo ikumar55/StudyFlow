@@ -110,6 +110,51 @@ struct StudyFlowDestructiveButtonStyle: ButtonStyle {
     }
 }
 
+// MARK: - Study Session Answer Button Styles
+struct StudyAnswerWrongButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.studyFlowSubheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56) // Fixed height for consistency
+            .background(
+                LinearGradient(
+                    colors: [Color.red.opacity(0.8), Color.red.opacity(0.9)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.button))
+            .studyFlowButtonShadow()
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+struct StudyAnswerCorrectButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.studyFlowSubheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56) // Fixed height for consistency
+            .background(
+                LinearGradient(
+                    colors: [Color.green.opacity(0.8), Color.green.opacity(0.9)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: CornerRadius.button))
+            .studyFlowButtonShadow()
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Card Styles
 struct StudyFlowCardStyle: ViewModifier {
     let backgroundColor: Color
