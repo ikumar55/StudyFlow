@@ -17,7 +17,8 @@ struct StudyFlowApp: App {
             Lecture.self,
             Flashcard.self,
             StudySession.self,
-            DailyCardCompletion.self
+            DailyCardCompletion.self,
+            PendingNotification.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

@@ -93,6 +93,12 @@ struct MainTabView: View {
             selectedTab = 0
             notificationCards = matchingCards
             
+            // Mark notification as sent (user is now studying)
+            NotificationManager.shared.markNotificationAsSent(
+                identifier: "notification-\(cardIDs.joined(separator: "-"))",
+                modelContext: modelContext
+            )
+            
             // Small delay to ensure tab switch completes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 showingNotificationStudySession = true

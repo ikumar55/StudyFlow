@@ -259,3 +259,32 @@ class DailyCardCompletion {
         wasCorrect ? 1.0 : 0.0
     }
 }
+
+// MARK: - Pending Notification Model
+@Model
+class PendingNotification {
+    var notificationID: String
+    var cardIDs: [String] // IDs of cards in this notification batch
+    var scheduledDate: Date
+    var sentDate: Date?
+    var completedDate: Date? // When user studied these cards
+    var wasSkipped: Bool = false
+    var studyDate: Date // The date this notification belongs to (for daily grouping)
+    
+    init(notificationID: String, cardIDs: [String], scheduledDate: Date, studyDate: Date = Date()) {
+        self.notificationID = notificationID
+        self.cardIDs = cardIDs
+        self.scheduledDate = scheduledDate
+        self.studyDate = Calendar.current.startOfDay(for: studyDate)
+    }
+    
+    var isPending: Bool {
+        sentDate != nil && completedDate == nil && !wasSkipped
+    }
+    
+    var isOverdue: Bool {
+        guard let sent = sentDate else { return false }
+        let calendar = Calendar.current
+        return !calendar.isDateInToday(sent) && completedDate == nil && !wasSkipped
+    }
+}

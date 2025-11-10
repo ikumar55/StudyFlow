@@ -83,11 +83,19 @@ class NotificationManager: ObservableObject {
             let identifier = "\(studyNotificationIdentifier)-\(index)"
             let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
             
-            notificationCenter.add(request) { error in
+            notificationCenter.add(request) { [weak self] error in
                 if let error = error {
                     print("NotificationManager: Error scheduling notification: \(error)")
                 } else {
                     print("NotificationManager: Scheduled notification for \(notificationTime)")
+                    
+                    // Create PendingNotification record
+                    self?.createPendingNotificationRecord(
+                        identifier: identifier,
+                        cardIDs: cardsForNotification.map { $0.persistentModelID.hashValue.description },
+                        scheduledDate: notificationTime,
+                        modelContext: modelContext
+                    )
                 }
             }
         }
@@ -95,7 +103,9 @@ class NotificationManager: ObservableObject {
     
     // MARK: - Card Selection Logic
     private func getCardsForNotifications(modelContext: ModelContext) -> [Flashcard] {
-        // Get today's cards using the existing spaced repetition engine
+        let preferences = getNotificationPreferences()
+        
+        // Get all active cards
         let descriptor = FetchDescriptor<Flashcard>(
             predicate: #Predicate<Flashcard> { card in
                 card.isActive
@@ -104,11 +114,64 @@ class NotificationManager: ObservableObject {
         
         do {
             let allCards = try modelContext.fetch(descriptor)
-            return SpacedRepetitionEngine.getTodaysCards(from: allCards, maxLimit: 50)
+            
+            // Apply class filter if specified
+            let filteredCards = applyClassFilter(cards: allCards, preferences: preferences)
+            
+            // Get today's cards with smart prioritization
+            return getSmartPrioritizedCards(from: filteredCards, preferences: preferences)
         } catch {
             print("NotificationManager: Error fetching cards: \(error)")
             return []
         }
+    }
+    
+    private func applyClassFilter(cards: [Flashcard], preferences: NotificationPreferences) -> [Flashcard] {
+        guard let priorityClassID = preferences.priorityClassID else {
+            return cards // No filter applied
+        }
+        
+        return cards.filter { card in
+            card.lecture?.studyClass?.persistentModelID.hashValue.description == priorityClassID
+        }
+    }
+    
+    private func getSmartPrioritizedCards(from cards: [Flashcard], preferences: NotificationPreferences) -> [Flashcard] {
+        // Separate cards by study state
+        let learningCards = cards.filter { $0.studyState == .learning }
+        let reviewingCards = cards.filter { $0.studyState == .reviewing }
+        let masteredCards = cards.filter { $0.studyState == .mastered }
+        
+        // Calculate how many cards we can fit in today's notification window
+        let maxCardsForToday = calculateMaxCardsForToday(preferences: preferences)
+        
+        // Smart allocation based on priority: Learning > Reviewing > Mastered
+        var selectedCards: [Flashcard] = []
+        var remainingSlots = maxCardsForToday
+        
+        // Priority 1: Learning cards (most important)
+        let learningAllocation = min(learningCards.count, Int(Double(remainingSlots) * 0.6)) // 60% for learning
+        selectedCards.append(contentsOf: Array(learningCards.shuffled().prefix(learningAllocation)))
+        remainingSlots -= learningAllocation
+        
+        // Priority 2: Reviewing cards
+        let reviewingAllocation = min(reviewingCards.count, Int(Double(remainingSlots) * 0.7)) // 70% of remaining
+        selectedCards.append(contentsOf: Array(reviewingCards.shuffled().prefix(reviewingAllocation)))
+        remainingSlots -= reviewingAllocation
+        
+        // Priority 3: Mastered cards (fill remaining slots)
+        let masteredAllocation = min(masteredCards.count, remainingSlots)
+        selectedCards.append(contentsOf: Array(masteredCards.shuffled().prefix(masteredAllocation)))
+        
+        return selectedCards.shuffled() // Shuffle final selection for variety
+    }
+    
+    private func calculateMaxCardsForToday(preferences: NotificationPreferences) -> Int {
+        // Calculate total notification slots available today
+        let notificationTimes = calculateNotificationTimes(preferences: preferences, from: Date())
+        let totalSlots = notificationTimes.count * preferences.maxCardsPerNotification
+        
+        return totalSlots
     }
     
     private func selectCardsForNotification(from cards: [Flashcard], batchSize: Int, notificationIndex: Int) -> [Flashcard] {
@@ -136,13 +199,10 @@ class NotificationManager: ObservableObject {
             content.body = card.question
             content.subtitle = card.lecture?.studyClass?.name ?? "StudyFlow"
         } else {
+            let firstCard = cards[0]
             content.title = "Study Time! 📚"
-            content.body = "\(cards.count) cards ready to review"
-            
-            // Show preview of first card
-            if let firstCard = cards.first {
-                content.subtitle = firstCard.question
-            }
+            content.body = "Card 1 of \(cards.count): \(firstCard.question)"
+            content.subtitle = firstCard.lecture?.studyClass?.name ?? "StudyFlow"
         }
         
         content.sound = preferences.soundEnabled ? .default : nil
@@ -151,7 +211,9 @@ class NotificationManager: ObservableObject {
         // Add user info for deep linking
         content.userInfo = [
             "cardIDs": cards.map { $0.persistentModelID.hashValue.description },
-            "notificationType": "study-reminder"
+            "notificationType": "study-reminder",
+            "totalCards": cards.count,
+            "currentCard": 1
         ]
         
         // Add interactive actions
@@ -213,6 +275,65 @@ class NotificationManager: ObservableObject {
         notificationCenter.removeDeliveredNotifications(withIdentifiers: [identifier])
     }
     
+    private func createPendingNotificationRecord(
+        identifier: String,
+        cardIDs: [String],
+        scheduledDate: Date,
+        modelContext: ModelContext
+    ) {
+        let pendingNotification = PendingNotification(
+            notificationID: identifier,
+            cardIDs: cardIDs,
+            scheduledDate: scheduledDate
+        )
+        
+        modelContext.insert(pendingNotification)
+        
+        do {
+            try modelContext.save()
+        } catch {
+            print("NotificationManager: Error saving pending notification: \(error)")
+        }
+    }
+    
+    // MARK: - Notification Status Updates
+    func markNotificationAsSent(identifier: String, modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<PendingNotification>(
+            predicate: #Predicate<PendingNotification> { notification in
+                notification.notificationID == identifier
+            }
+        )
+        
+        do {
+            let notifications = try modelContext.fetch(descriptor)
+            if let notification = notifications.first {
+                notification.sentDate = Date()
+                try modelContext.save()
+            }
+        } catch {
+            print("NotificationManager: Error updating notification status: \(error)")
+        }
+    }
+    
+    func markNotificationAsCompleted(cardIDs: [String], modelContext: ModelContext) {
+        let descriptor = FetchDescriptor<PendingNotification>()
+        
+        do {
+            let notifications = try modelContext.fetch(descriptor)
+            let matchingNotifications = notifications.filter { notification in
+                Set(notification.cardIDs) == Set(cardIDs) && notification.completedDate == nil
+            }
+            
+            for notification in matchingNotifications {
+                notification.completedDate = Date()
+            }
+            
+            try modelContext.save()
+        } catch {
+            print("NotificationManager: Error marking notification as completed: \(error)")
+        }
+    }
+    
     // MARK: - Preferences
     private func getNotificationPreferences() -> NotificationPreferences {
         // For now, return default preferences
@@ -231,6 +352,8 @@ struct NotificationPreferences {
     let endHour: Int // Latest hour to send notifications (24-hour format)
     let soundEnabled: Bool
     let weekendsEnabled: Bool
+    let allowCardRepetition: Bool // Whether same card can appear multiple times per day
+    let priorityClassID: String? // ID of class to prioritize (nil = all classes)
     
     init(
         isEnabled: Bool = true,
@@ -240,7 +363,9 @@ struct NotificationPreferences {
         startHour: Int = 9, // 9 AM
         endHour: Int = 21, // 9 PM
         soundEnabled: Bool = true,
-        weekendsEnabled: Bool = true
+        weekendsEnabled: Bool = true,
+        allowCardRepetition: Bool = true,
+        priorityClassID: String? = nil
     ) {
         self.isEnabled = isEnabled
         self.intervalMinutes = intervalMinutes
@@ -250,5 +375,7 @@ struct NotificationPreferences {
         self.endHour = endHour
         self.soundEnabled = soundEnabled
         self.weekendsEnabled = weekendsEnabled
+        self.allowCardRepetition = allowCardRepetition
+        self.priorityClassID = priorityClassID
     }
 }

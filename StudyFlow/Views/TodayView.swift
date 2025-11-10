@@ -11,6 +11,7 @@ import SwiftData
 struct TodayView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var allFlashcards: [Flashcard]
+    @Query private var pendingNotifications: [PendingNotification]
     @Query private var dailyCompletions: [DailyCardCompletion]
     
     // Study Session State
@@ -78,15 +79,60 @@ struct TodayView: View {
     }
     
     var pendingNotificationCards: [Flashcard] {
-        // For now, return empty array - will implement notification tracking later
-        []
+        // Get today's pending notifications
+        let todaysPendingNotifications = pendingNotifications.filter { notification in
+            Calendar.current.isDateInToday(notification.studyDate) && notification.isPending
+        }
+        
+        // Extract card IDs from pending notifications
+        let pendingCardIDs = Set(todaysPendingNotifications.flatMap { $0.cardIDs })
+        
+        // Return flashcards that match the pending notification IDs
+        return allFlashcards.filter { card in
+            let cardID = card.persistentModelID.hashValue.description
+            return pendingCardIDs.contains(cardID)
+        }
     }
     
     var studyingCards: [Flashcard] {
         // All cards planned for today regardless of state (learning, reviewing, mastered)
-        // Exclude cards that have been completed today
+        // Exclude overdue and pending notification cards
         let completedIDs = Set(todaysCompletions.map { $0.flashcardID })
-        return todaysCards.filter { !$0.isOverdue && !completedIDs.contains($0.persistentModelID.hashValue.description) }
+        let pendingIDs = Set(pendingNotificationCards.map { $0.persistentModelID.hashValue.description })
+        return todaysCards.filter { card in
+            !card.isOverdue && 
+            !completedIDs.contains(card.persistentModelID.hashValue.description) &&
+            !pendingIDs.contains(card.persistentModelID.hashValue.description)
+        }
+    }
+    
+    var notifiedTodayCards: [Flashcard] {
+        // Cards that were sent in notifications today but not yet studied
+        let todaysNotifications = pendingNotifications.filter { notification in
+            Calendar.current.isDateInToday(notification.studyDate) && 
+            notification.sentDate != nil && 
+            notification.completedDate == nil && 
+            !notification.wasSkipped
+        }
+        
+        let notifiedCardIDs = Set(todaysNotifications.flatMap { $0.cardIDs })
+        return allFlashcards.filter { card in
+            let cardID = card.persistentModelID.hashValue.description
+            return notifiedCardIDs.contains(cardID)
+        }
+    }
+    
+    var awaitingNotificationCards: [Flashcard] {
+        // Cards scheduled for today but not yet sent in notifications
+        let completedIDs = Set(todaysCompletions.map { $0.flashcardID })
+        let notifiedIDs = Set(notifiedTodayCards.map { $0.persistentModelID.hashValue.description })
+        
+        return todaysCards.filter { card in
+            let cardID = card.persistentModelID.hashValue.description
+            return !card.isOverdue && 
+                   !completedIDs.contains(cardID) && 
+                   !notifiedIDs.contains(cardID)
+        }
     }
     
     var completedTodayCards: [(Flashcard, DailyCardCompletion)] {
@@ -223,20 +269,17 @@ struct TodayView: View {
     }
     
     var studyingSection: some View {
-        CardSectionView(
-            title: "STUDYING TODAY",
-            subtitle: "\(studyingCards.count) cards",
-            icon: "brain.head.profile",
-            cards: studyingCards,
-            backgroundColor: Color.white,
-            sectionBackgroundColor: Color.learningBackground,
-            headerBackgroundColor: Color.iosLightGray,
-            accentColor: .learningAccent,
-            borderAccentColor: .learningBorderAccent,
+        StudyingTodaySection(
+            notifiedCards: notifiedTodayCards,
+            awaitingCards: awaitingNotificationCards,
             showAll: $showAllLearning,
-            onStudy: {
+            onStudyNotified: {
                 HapticFeedback.light()
-                startBucketSession(cards: studyingCards, title: "Studying Cards")
+                startBucketSession(cards: notifiedTodayCards, title: "Notified Cards")
+            },
+            onStudyAwaiting: {
+                HapticFeedback.light()
+                startBucketSession(cards: awaitingNotificationCards, title: "Awaiting Notification Cards")
             },
             onCardTap: { card in
                 HapticFeedback.light()

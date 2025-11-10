@@ -549,6 +549,16 @@ struct StudySessionView: View {
         session.completedDate = Date()
         
         modelContext.insert(session)
+        
+        // If this was a notification session, mark the notification as completed
+        if sessionMode == .notification {
+            let cardIDs = initialCards.map { $0.persistentModelID.hashValue.description }
+            NotificationManager.shared.markNotificationAsCompleted(
+                cardIDs: cardIDs,
+                modelContext: modelContext
+            )
+        }
+        
         try? modelContext.save()
     }
 }
