@@ -788,6 +788,199 @@ struct CompletedCardRow: View {
     }
 }
 
+// MARK: - Studying Today Section with Subsections
+struct StudyingTodaySection: View {
+    let notifiedCards: [Flashcard]
+    let awaitingCards: [Flashcard]
+    @Binding var showAll: Bool
+    let onStudyNotified: () -> Void
+    let onStudyAwaiting: () -> Void
+    let onCardTap: (Flashcard) -> Void
+    
+    private var totalCards: Int {
+        notifiedCards.count + awaitingCards.count
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Main section header
+            HStack(spacing: 0) {
+                // Colored left border
+                Rectangle()
+                    .fill(Color.learningBorderAccent)
+                    .frame(width: 2)
+                
+                HStack(spacing: 12) {
+                    // Icon with accent color
+                    Image(systemName: "brain.head.profile")
+                        .font(.title3)
+                        .foregroundColor(.learningAccent)
+                        .frame(width: 24, height: 24)
+                    
+                    // Title and subtitle
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("STUDYING TODAY")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Text("\(totalCards) cards")
+                            .font(.caption)
+                            .foregroundColor(.subtitleGray)
+                    }
+                    
+                    Spacer()
+                    
+                    // View All button
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showAll.toggle()
+                        }
+                    }) {
+                        Text(showAll ? "Less" : "All")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.learningAccent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            .background(Color.iosLightGray)
+            
+            // Subsections
+            VStack(spacing: 0) {
+                // Notified Today subsection
+                if !notifiedCards.isEmpty {
+                    SubsectionView(
+                        title: "📱 Notified Today",
+                        cards: notifiedCards,
+                        accentColor: .blue,
+                        showAll: showAll,
+                        onStudy: onStudyNotified,
+                        onCardTap: onCardTap
+                    )
+                    
+                    if !awaitingCards.isEmpty {
+                        Divider()
+                            .padding(.horizontal, 20)
+                    }
+                }
+                
+                // Awaiting Notification subsection
+                if !awaitingCards.isEmpty {
+                    SubsectionView(
+                        title: "⏳ Awaiting Notification",
+                        cards: awaitingCards,
+                        accentColor: .learningAccent,
+                        showAll: showAll,
+                        onStudy: onStudyAwaiting,
+                        onCardTap: onCardTap
+                    )
+                }
+                
+                // Empty state
+                if notifiedCards.isEmpty && awaitingCards.isEmpty {
+                    HStack {
+                        Text("No cards scheduled for study today")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    .background(Color.white)
+                }
+            }
+        }
+        .background(Color.learningBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// MARK: - Subsection View
+struct SubsectionView: View {
+    let title: String
+    let cards: [Flashcard]
+    let accentColor: Color
+    let showAll: Bool
+    let onStudy: () -> Void
+    let onCardTap: (Flashcard) -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Subsection header
+            HStack(spacing: 12) {
+                Text(title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                Text("(\(cards.count))")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                // Study button
+                Button(action: onStudy) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill")
+                            .font(.caption2)
+                        Text("Study")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(accentColor)
+                    .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color.white)
+            
+            // Card previews
+            let cardsToShow = showAll ? cards : Array(cards.prefix(2))
+            ForEach(Array(cardsToShow.enumerated()), id: \.element) { index, card in
+                VStack(spacing: 0) {
+                    Button(action: { onCardTap(card) }) {
+                        CardPreviewRow(card: card, accentColor: accentColor)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .background(Color.white)
+                    
+                    // Add subtle divider between cards (except last)
+                    if index < cardsToShow.count - 1 {
+                        Rectangle()
+                            .fill(Color(hex: "#F0F0F0") ?? Color.gray.opacity(0.2))
+                            .frame(height: 0.5)
+                            .padding(.horizontal, 20)
+                    }
+                }
+            }
+            
+            // Show "and X more" if not showing all
+            if !showAll && cards.count > 2 {
+                HStack {
+                    Text("and \(cards.count - 2) more...")
+                        .font(.caption)
+                        .foregroundColor(.subtitleGray)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.white)
+            }
+        }
+    }
+}
+
 #Preview {
     ContentView()
 }

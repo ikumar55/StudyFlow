@@ -334,11 +334,34 @@ class NotificationManager: ObservableObject {
         }
     }
     
+    // MARK: - Testing & Debug
+    func scheduleTestNotificationWithCards(modelContext: ModelContext) {
+        let cards = getCardsForNotifications(modelContext: modelContext)
+        guard !cards.isEmpty else {
+            print("NotificationManager: No cards available for test notification")
+            return
+        }
+        
+        let testCards = Array(cards.prefix(3))
+        let preferences = getNotificationPreferences()
+        let content = createNotificationContent(for: testCards, preferences: preferences)
+        
+        // Schedule for 5 seconds from now
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        let request = UNNotificationRequest(identifier: "test-study-notification", content: content, trigger: trigger)
+        
+        notificationCenter.add(request) { error in
+            if let error = error {
+                print("NotificationManager: Error scheduling test notification: \(error)")
+            } else {
+                print("NotificationManager: Test notification scheduled for 5 seconds")
+            }
+        }
+    }
+    
     // MARK: - Preferences
     private func getNotificationPreferences() -> NotificationPreferences {
-        // For now, return default preferences
-        // TODO: Load from UserDefaults or Settings
-        return NotificationPreferences()
+        return NotificationPreferencesManager.shared.preferences
     }
 }
 

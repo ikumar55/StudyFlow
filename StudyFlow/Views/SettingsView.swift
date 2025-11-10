@@ -10,11 +10,11 @@ import SwiftData
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
+    @StateObject private var preferencesManager = NotificationPreferencesManager.shared
     
     @AppStorage("dailyCardLimit") private var dailyCardLimit: Int = 30
-    @AppStorage("enableNotifications") private var enableNotifications: Bool = true
-    @AppStorage("quietHoursStart") private var quietHoursStart: Date = Calendar.current.date(from: DateComponents(hour: 23)) ?? Date()
-    @AppStorage("quietHoursEnd") private var quietHoursEnd: Date = Calendar.current.date(from: DateComponents(hour: 9)) ?? Date()
+    @State private var quietHoursStart: Date = Calendar.current.date(from: DateComponents(hour: 23)) ?? Date()
+    @State private var quietHoursEnd: Date = Calendar.current.date(from: DateComponents(hour: 9)) ?? Date()
     
     @State private var showingResetConfirmation = false
     @State private var showingResetSuccess = false
@@ -43,25 +43,44 @@ struct SettingsView: View {
                 
                 // Notification Settings
                 Section("Notifications") {
-                    Toggle("Enable Notifications", isOn: $enableNotifications)
+                    Toggle("Enable Notifications", isOn: Binding(
+                        get: { preferencesManager.isEnabled },
+                        set: { preferencesManager.isEnabled = $0 }
+                    ))
                     
-                    if enableNotifications {
+                    if preferencesManager.isEnabled {
                         HStack {
                             Text("Quiet Hours Start")
                             Spacer()
-                            DatePicker("", selection: $quietHoursStart, displayedComponents: .hourAndMinute)
+                            DatePicker("", selection: Binding(
+                                get: { 
+                                    Calendar.current.date(from: DateComponents(hour: preferencesManager.startHour)) ?? Date()
+                                },
+                                set: { date in
+                                    let hour = Calendar.current.component(.hour, from: date)
+                                    preferencesManager.startHour = hour
+                                }
+                            ), displayedComponents: .hourAndMinute)
                                 .labelsHidden()
                         }
                         
                         HStack {
                             Text("Quiet Hours End")
                             Spacer()
-                            DatePicker("", selection: $quietHoursEnd, displayedComponents: .hourAndMinute)
+                            DatePicker("", selection: Binding(
+                                get: { 
+                                    Calendar.current.date(from: DateComponents(hour: preferencesManager.endHour)) ?? Date()
+                                },
+                                set: { date in
+                                    let hour = Calendar.current.component(.hour, from: date)
+                                    preferencesManager.endHour = hour
+                                }
+                            ), displayedComponents: .hourAndMinute)
                                 .labelsHidden()
                         }
                         
                         NavigationLink("Advanced Notification Settings") {
-                            NotificationSettingsView()
+                            NotificationSettingsView(preferencesManager: preferencesManager)
                         }
                     }
                 }
@@ -168,31 +187,34 @@ struct SettingsView: View {
 }
 
 struct StudyModesSettingsView: View {
+    @StateObject private var preferencesManager = NotificationPreferencesManager.shared
+    
     var body: some View {
         List {
             Section("Study Intensity") {
-                SettingRow(
-                    title: "Normal Mode",
-                    description: "30 cards/day, hourly notifications",
-                    isSelected: true
-                )
-                
-                SettingRow(
-                    title: "Intensive Mode",
-                    description: "50 cards/day, 30-minute intervals",
-                    isSelected: false
-                )
-                
-                SettingRow(
-                    title: "Exam Mode",
-                    description: "Unlimited cards, aggressive scheduling",
-                    isSelected: false
-                )
+                ForEach(StudyMode.allCases, id: \.self) { mode in
+                    SettingRow(
+                        title: mode.displayName,
+                        description: mode.description,
+                        isSelected: preferencesManager.studyMode == mode,
+                        onTap: {
+                            preferencesManager.studyMode = mode
+                            HapticFeedback.light()
+                        }
+                    )
+                }
             }
             
             Section("Session Preferences") {
-                Toggle("Allow Weekend Notifications", isOn: .constant(true))
-                Toggle("Smart Timing (Learn Usage Patterns)", isOn: .constant(true))
+                Toggle("Allow Weekend Notifications", isOn: Binding(
+                    get: { preferencesManager.weekendsEnabled },
+                    set: { preferencesManager.weekendsEnabled = $0 }
+                ))
+                
+                Toggle("Allow Card Repetition", isOn: Binding(
+                    get: { preferencesManager.allowCardRepetition },
+                    set: { preferencesManager.allowCardRepetition = $0 }
+                ))
             }
         }
         .navigationTitle("Study Modes")
@@ -201,41 +223,122 @@ struct StudyModesSettingsView: View {
 }
 
 struct NotificationSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @ObservedObject var preferencesManager: NotificationPreferencesManager
+    @Query private var studyClasses: [StudyClass]
+    
     var body: some View {
         List {
             Section("Frequency") {
-                SettingRow(
-                    title: "Conservative",
-                    description: "Every 2-3 hours",
-                    isSelected: false
-                )
-                
-                SettingRow(
-                    title: "Moderate",
-                    description: "Every hour",
-                    isSelected: true
-                )
-                
-                SettingRow(
-                    title: "Aggressive",
-                    description: "Every 30 minutes",
-                    isSelected: false
-                )
+                ForEach(NotificationFrequency.allCases, id: \.self) { frequency in
+                    SettingRow(
+                        title: frequency.displayName,
+                        description: frequency.description,
+                        isSelected: preferencesManager.notificationFrequency == frequency,
+                        onTap: {
+                            preferencesManager.notificationFrequency = frequency
+                            HapticFeedback.light()
+                        }
+                    )
+                }
             }
             
-            Section("Content") {
-                Toggle("Show Question Previews", isOn: .constant(true))
-                Toggle("Include Study Statistics", isOn: .constant(true))
-                Toggle("Motivational Messages", isOn: .constant(true))
+            Section("Cards Per Notification") {
+                HStack {
+                    Text("Max Cards")
+                    Spacer()
+                    Picker("Max Cards", selection: Binding(
+                        get: { preferencesManager.maxCardsPerNotification },
+                        set: { preferencesManager.maxCardsPerNotification = $0 }
+                    )) {
+                        ForEach(1...5, id: \.self) { count in
+                            Text("\(count)").tag(count)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
             }
             
-            Section("Integration") {
-                Toggle("Respect Focus Modes", isOn: .constant(true))
-                Toggle("Adapt to Screen Time", isOn: .constant(false))
+            Section("Priority Class") {
+                Button(action: {
+                    preferencesManager.priorityClassID = nil
+                    HapticFeedback.light()
+                }) {
+                    HStack {
+                        Text("All Classes")
+                        Spacer()
+                        if preferencesManager.priorityClassID == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundColor(.blue)
+                        }
+                    }
+                }
+                .foregroundColor(.primary)
+                
+                ForEach(studyClasses) { studyClass in
+                    Button(action: {
+                        let classID = studyClass.persistentModelID.hashValue.description
+                        preferencesManager.priorityClassID = classID
+                        HapticFeedback.light()
+                    }) {
+                        HStack {
+                            Circle()
+                                .fill(Color(hex: studyClass.colorCode) ?? .blue)
+                                .frame(width: 12, height: 12)
+                            
+                            Text(studyClass.name)
+                            
+                            Spacer()
+                            
+                            if preferencesManager.priorityClassID == studyClass.persistentModelID.hashValue.description {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                    .foregroundColor(.primary)
+                }
+            }
+            
+            Section("Test Notifications") {
+                Button("Send Test Notification") {
+                    sendTestNotification()
+                }
+                .foregroundColor(.blue)
+                
+                Button("Test with Study Cards") {
+                    testNotificationWithCards()
+                }
+                .foregroundColor(.green)
             }
         }
         .navigationTitle("Notifications")
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private func sendTestNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = "StudyFlow Test 📚"
+        content.body = "This is a test notification to verify your settings are working!"
+        content.sound = .default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        let request = UNNotificationRequest(identifier: "test-notification", content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            DispatchQueue.main.async {
+                if error == nil {
+                    HapticFeedback.success()
+                } else {
+                    HapticFeedback.error()
+                }
+            }
+        }
+    }
+    
+    private func testNotificationWithCards() {
+        NotificationManager.shared.scheduleTestNotificationWithCards(modelContext: modelContext)
+        HapticFeedback.success()
     }
 }
 
@@ -243,6 +346,14 @@ struct SettingRow: View {
     let title: String
     let description: String
     let isSelected: Bool
+    let onTap: (() -> Void)?
+    
+    init(title: String, description: String, isSelected: Bool, onTap: (() -> Void)? = nil) {
+        self.title = title
+        self.description = description
+        self.isSelected = isSelected
+        self.onTap = onTap
+    }
     
     var body: some View {
         HStack {
@@ -264,7 +375,7 @@ struct SettingRow: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            // TODO: Handle selection
+            onTap?()
         }
     }
 }
