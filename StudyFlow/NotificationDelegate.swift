@@ -133,6 +133,6 @@ class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate, Observab
 }
 
 // MARK: - Notification Action Types
-enum NotificationAction {
+enum NotificationAction: Equatable {
     case studyCards(cardIDs: [String])
 }

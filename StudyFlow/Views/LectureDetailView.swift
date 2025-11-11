@@ -292,18 +292,30 @@ struct AddFlashcardView: View {
     
     @State private var question = ""
     @State private var answer = ""
+    @State private var questionPhotos: [String] = []
+    @State private var answerPhotos: [String] = []
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Flashcard Content") {
+                Section("Question") {
                     TextField("Question", text: $question, axis: .vertical)
                         .lineLimit(3...6)
                         .textInputAutocapitalization(.sentences)
-                    
+                }
+                
+                Section("Question Photos (Max 5)") {
+                    PhotoPicker(photos: $questionPhotos, title: "Question Photos")
+                }
+                
+                Section("Answer") {
                     TextField("Answer", text: $answer, axis: .vertical)
                         .lineLimit(3...8)
                         .textInputAutocapitalization(.sentences)
+                }
+                
+                Section("Answer Photos (Max 5)") {
+                    PhotoPicker(photos: $answerPhotos, title: "Answer Photos")
                 }
                 
                 Section {
@@ -339,6 +351,10 @@ struct AddFlashcardView: View {
             lecture: lecture
         )
         
+        // Add photos to the flashcard
+        flashcard.questionPhotos = questionPhotos
+        flashcard.answerPhotos = answerPhotos
+        
         modelContext.insert(flashcard)
         try? modelContext.save()
         
@@ -356,23 +372,37 @@ struct EditFlashcardView: View {
     @State private var question: String
     @State private var answer: String
     @State private var studyState: StudyCardState
+    @State private var questionPhotos: [String]
+    @State private var answerPhotos: [String]
     
     init(flashcard: Flashcard) {
         self.flashcard = flashcard
         self._question = State(initialValue: flashcard.question)
         self._answer = State(initialValue: flashcard.answer)
         self._studyState = State(initialValue: flashcard.studyState)
+        self._questionPhotos = State(initialValue: flashcard.questionPhotos)
+        self._answerPhotos = State(initialValue: flashcard.answerPhotos)
     }
     
     var body: some View {
         NavigationStack {
             Form {
-                Section("Content") {
+                Section("Question") {
                     TextField("Question", text: $question, axis: .vertical)
                         .lineLimit(3...6)
-                    
+                }
+                
+                Section("Question Photos (Max 5)") {
+                    PhotoPicker(photos: $questionPhotos, title: "Question Photos")
+                }
+                
+                Section("Answer") {
                     TextField("Answer", text: $answer, axis: .vertical)
                         .lineLimit(3...8)
+                }
+                
+                Section("Answer Photos (Max 5)") {
+                    PhotoPicker(photos: $answerPhotos, title: "Answer Photos")
                 }
                 
                 Section("Study State") {
@@ -434,6 +464,10 @@ struct EditFlashcardView: View {
         flashcard.question = question.trimmingCharacters(in: .whitespacesAndNewlines)
         flashcard.answer = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         flashcard.studyState = studyState
+        
+        // Update photos
+        flashcard.questionPhotos = questionPhotos
+        flashcard.answerPhotos = answerPhotos
         
         try? modelContext.save()
         dismiss()

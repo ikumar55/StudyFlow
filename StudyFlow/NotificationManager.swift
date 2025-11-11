@@ -89,13 +89,18 @@ class NotificationManager: ObservableObject {
                 } else {
                     print("NotificationManager: Scheduled notification for \(notificationTime)")
                     
-                    // Create PendingNotification record
-                    self?.createPendingNotificationRecord(
-                        identifier: identifier,
-                        cardIDs: cardsForNotification.map { $0.persistentModelID.hashValue.description },
-                        scheduledDate: notificationTime,
-                        modelContext: modelContext
-                    )
+                    // Create PendingNotification record on main thread
+                    let cardIDs = cardsForNotification.map { $0.persistentModelID.hashValue.description }
+                    DispatchQueue.main.async {
+                        if let modelContext = self?.modelContext {
+                            self?.createPendingNotificationRecord(
+                                identifier: identifier,
+                                cardIDs: cardIDs,
+                                scheduledDate: notificationTime,
+                                modelContext: modelContext
+                            )
+                        }
+                    }
                 }
             }
         }

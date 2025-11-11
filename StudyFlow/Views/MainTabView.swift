@@ -52,8 +52,8 @@ struct MainTabView: View {
                 handleNotificationAction(action)
             }
         }
-        .onChange(of: notificationDelegate.pendingNotificationAction) { _, newAction in
-            if let action = newAction {
+        .onChange(of: notificationDelegate.pendingNotificationAction) {
+            if let action = notificationDelegate.pendingNotificationAction {
                 handleNotificationAction(action)
             }
         }

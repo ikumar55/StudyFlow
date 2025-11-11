@@ -25,6 +25,8 @@ struct StudySessionView: View {
     @State private var showingEditCard = false
     @State private var editedQuestion = ""
     @State private var editedAnswer = ""
+    @State private var editedQuestionPhotos: [String] = []
+    @State private var editedAnswerPhotos: [String] = []
     
     private var currentCard: Flashcard? {
         guard currentCardIndex < initialCards.count else { return nil }
@@ -226,6 +228,12 @@ struct StudySessionView: View {
                             .font(.cardQuestion)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
+                        
+                        // Question photos
+                        if !card.questionPhotos.isEmpty {
+                            PhotoGridView(photoFileNames: card.questionPhotos, columns: 2)
+                                .padding(.top, 8)
+                        }
                     }
                 } else {
                     // Answer side
@@ -238,6 +246,12 @@ struct StudySessionView: View {
                             .font(.cardAnswer)
                             .multilineTextAlignment(.center)
                             .lineLimit(nil)
+                        
+                        // Answer photos
+                        if !card.answerPhotos.isEmpty {
+                            PhotoGridView(photoFileNames: card.answerPhotos, columns: 2)
+                                .padding(.top, 8)
+                        }
                     }
                 }
             }
@@ -403,24 +417,26 @@ struct StudySessionView: View {
     private var editCardSheet: some View {
         NavigationView {
             Form {
-                Section(header: Text("Edit Flashcard")) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Question")
-                            .font(.headline)
-                        TextEditor(text: $editedQuestion)
-                            .frame(minHeight: 80)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Answer")
-                            .font(.headline)
-                        TextEditor(text: $editedAnswer)
-                            .frame(minHeight: 80)
-                            .background(Color(.systemGray6))
-                            .cornerRadius(8)
-                    }
+                Section("Question") {
+                    TextEditor(text: $editedQuestion)
+                        .frame(minHeight: 80)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                }
+                
+                Section("Question Photos (Max 5)") {
+                    PhotoPicker(photos: $editedQuestionPhotos, title: "Question Photos")
+                }
+                
+                Section("Answer") {
+                    TextEditor(text: $editedAnswer)
+                        .frame(minHeight: 80)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
+                }
+                
+                Section("Answer Photos (Max 5)") {
+                    PhotoPicker(photos: $editedAnswerPhotos, title: "Answer Photos")
                 }
             }
             .navigationTitle("Edit Flashcard")
@@ -446,6 +462,8 @@ struct StudySessionView: View {
             if let card = currentCard {
                 editedQuestion = card.question
                 editedAnswer = card.answer
+                editedQuestionPhotos = card.questionPhotos
+                editedAnswerPhotos = card.answerPhotos
             }
         }
     }
@@ -457,6 +475,10 @@ struct StudySessionView: View {
         // Update the card with edited content
         card.question = editedQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
         card.answer = editedAnswer.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Update photos
+        card.questionPhotos = editedQuestionPhotos
+        card.answerPhotos = editedAnswerPhotos
         
         // Save the context
         do {

@@ -125,6 +125,29 @@ class Flashcard {
     var studyStateRaw: String = "learning"
     var isActive: Bool = true
     
+    // Photo support - using comma-separated strings for SwiftData compatibility
+    private var questionPhotosRaw: String = ""
+    private var answerPhotosRaw: String = ""
+    
+    // Computed properties to handle array conversion
+    var questionPhotos: [String] {
+        get {
+            questionPhotosRaw.isEmpty ? [] : questionPhotosRaw.components(separatedBy: ",")
+        }
+        set {
+            questionPhotosRaw = newValue.joined(separator: ",")
+        }
+    }
+    
+    var answerPhotos: [String] {
+        get {
+            answerPhotosRaw.isEmpty ? [] : answerPhotosRaw.components(separatedBy: ",")
+        }
+        set {
+            answerPhotosRaw = newValue.joined(separator: ",")
+        }
+    }
+    
     // Spaced repetition tracking
     var correctCount: Int = 0
     var totalAttempts: Int = 0
@@ -177,6 +200,19 @@ class Flashcard {
         if daysOverdue == 2 { return .overdue2Days }
         if daysOverdue >= 3 { return .overdue3PlusDays }
         return .notOverdue
+    }
+    
+    // Photo management helpers
+    var hasQuestionPhotos: Bool {
+        !questionPhotos.isEmpty
+    }
+    
+    var hasAnswerPhotos: Bool {
+        !answerPhotos.isEmpty
+    }
+    
+    var totalPhotoCount: Int {
+        questionPhotos.count + answerPhotos.count
     }
     
     private var daysSinceOverdue: Int {
@@ -264,8 +300,18 @@ class DailyCardCompletion {
 @Model
 class PendingNotification {
     var notificationID: String
-    var cardIDs: [String] // IDs of cards in this notification batch
+    private var cardIDsRaw: String // Comma-separated card IDs
     var scheduledDate: Date
+    
+    // Computed property to handle array conversion
+    var cardIDs: [String] {
+        get {
+            cardIDsRaw.isEmpty ? [] : cardIDsRaw.components(separatedBy: ",")
+        }
+        set {
+            cardIDsRaw = newValue.joined(separator: ",")
+        }
+    }
     var sentDate: Date?
     var completedDate: Date? // When user studied these cards
     var wasSkipped: Bool = false
@@ -273,7 +319,7 @@ class PendingNotification {
     
     init(notificationID: String, cardIDs: [String], scheduledDate: Date, studyDate: Date = Date()) {
         self.notificationID = notificationID
-        self.cardIDs = cardIDs
+        self.cardIDsRaw = cardIDs.joined(separator: ",")
         self.scheduledDate = scheduledDate
         self.studyDate = Calendar.current.startOfDay(for: studyDate)
     }
